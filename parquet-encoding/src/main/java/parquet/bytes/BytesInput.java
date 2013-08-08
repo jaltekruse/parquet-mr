@@ -144,6 +144,10 @@ abstract public class BytesInput {
     return baos.getBuf();
   }
 
+  public byte[] toByteArray(byte[] buffer, int start, int length) throws IOException {
+    return toByteArray();
+  }
+
   /**
    *
    * @return the size in bytes that would be written
@@ -183,6 +187,11 @@ abstract public class BytesInput {
       byte[] buf = new byte[byteCount];
       new DataInputStream(in).readFully(buf);
       return buf;
+    }
+
+    public byte[] toByteArray(byte[] buffer, int start, int end) throws IOException {
+      new DataInputStream(in).readFully(buffer, start, end);
+      return buffer;
     }
 
     @Override
