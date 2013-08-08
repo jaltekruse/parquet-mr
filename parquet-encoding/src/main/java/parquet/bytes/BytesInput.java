@@ -101,7 +101,7 @@ abstract public class BytesInput {
   }
 
   /**
-   * @param arrayOut
+   * @param baos
    * @return a BytesInput that will write the content of the buffer
    */
   public static BytesInput from(ByteArrayOutputStream baos) {
@@ -145,6 +145,16 @@ abstract public class BytesInput {
   }
 
   /**
+   * writes length bytes to an existing buffer
+   *
+   * @param buffer buffer to write to
+   * @param start where to start writing in the buffer
+   * @param length hown many bytes to write to the buffer
+   * @return the remaining bytes in the input
+   */
+  public abstract BytesInput writeTo(byte[] buffer, int start, int length) throws IOException;
+
+  /**
    *
    * @return the size in bytes that would be written
    */
@@ -178,12 +188,20 @@ abstract public class BytesInput {
       out.write(this.toByteArray());
     }
 
+    public BytesInput writeTo(byte[] buffer, int start, int length) throws IOException {
+      assert length <= size();
+      assert length > 0;
+      new DataInputStream(in).readFully(buffer, start, length);
+      return from(in, (int) size() - length);
+    }
+
     public byte[] toByteArray() throws IOException {
       if (DEBUG) LOG.debug("read all "+ byteCount + " bytes");
       byte[] buf = new byte[byteCount];
       new DataInputStream(in).readFully(buf);
       return buf;
     }
+
 
     @Override
     public long size() {
@@ -218,6 +236,28 @@ abstract public class BytesInput {
       }
     }
 
+    public BytesInput writeTo(byte[] buffer, int start, int length) throws IOException {
+      assert length <= size();
+      assert length > 0;
+      int writtenSoFar = 0;
+      for (BytesInput input : inputs) {
+        if (DEBUG) LOG.debug("write " + input.size() + " bytes to out");
+        if (DEBUG && input instanceof SequenceBytesIn) LOG.debug("{");
+        input.writeTo(buffer, start, (int) Math.min(length - writtenSoFar, input.size()));
+        if (input.size() < length){
+          writtenSoFar += input.size();
+        }
+        else{
+          break;
+        }
+        if (writtenSoFar == length){
+          break;
+        }
+        if (DEBUG && input instanceof SequenceBytesIn) LOG.debug("}");
+      }
+      return from(buffer, start, length);
+    }
+
     @Override
     public long size() {
       return size;
@@ -238,6 +278,13 @@ abstract public class BytesInput {
       BytesUtils.writeIntLittleEndian(out, intValue);
     }
 
+    public BytesInput writeTo(byte[] buffer, int start, int length) throws IOException {
+      assert length <= size();
+      assert length > 0;
+      BytesUtils.writeIntLittleEndian(buffer, start, intValue);
+      return from(buffer, start, length);
+    }
+
     @Override
     public long size() {
       return 4;
@@ -249,6 +296,12 @@ abstract public class BytesInput {
 
     @Override
     public void writeAllTo(OutputStream out) throws IOException {
+    }
+
+    @Override
+    public BytesInput writeTo(byte[] buffer, int start, int length) throws IOException {
+      // TODO - Not entirely sure this is the right thing to do here.
+      throw new UnsupportedOperationException();
     }
 
     @Override
@@ -271,6 +324,16 @@ abstract public class BytesInput {
       arrayOut.writeTo(out);
     }
 
+    public BytesInput writeTo(byte[] buffer, int start, int length) throws IOException {
+      assert length <= size();
+      assert length > 0;
+      // TODO - is there a more efficient way to do this? Could not find a way to get the byte[] wrapped in an output
+      // stream, not sure if there is another method for getting the data out, similar issue in BAOSBytesInput
+      ByteArrayOutputStream BAOS = new ByteArrayOutputStream(length);
+      arrayOut.writeTo(BAOS);
+      return from(BAOS).writeTo(buffer, start, length);
+    }
+
     @Override
     public long size() {
       return arrayOut.size();
@@ -289,6 +352,16 @@ abstract public class BytesInput {
     @Override
     public void writeAllTo(OutputStream out) throws IOException {
       arrayOut.writeTo(out);
+    }
+
+    public BytesInput writeTo(byte[] buffer, int start, int length) {
+      assert length <= size();
+      assert length > 0;
+      // TODO - is there a more efficient way to do this? Could not find a way to get the byte[] wrapped in an output
+      // stream, not sure if there is another method for getting the data out, same issue in CapacityBAOSByteInput
+      byte[] tempBuf = arrayOut.toByteArray();
+      System.arraycopy(tempBuf, 0, buffer, start, length);
+      return from(buffer);
     }
 
     @Override
@@ -313,6 +386,14 @@ abstract public class BytesInput {
     @Override
     public void writeAllTo(OutputStream out) throws IOException {
       out.write(in, offset, length);
+    }
+
+    @Override
+    public BytesInput writeTo(byte[] buffer, int start, int length) {
+      assert length <= size();
+      assert length > 0;
+      System.arraycopy(in, offset, buffer, start, length);
+      return from(buffer, start, length);
     }
 
     @Override

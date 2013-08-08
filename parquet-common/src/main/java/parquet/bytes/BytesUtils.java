@@ -143,6 +143,21 @@ public class BytesUtils {
   }
 
   /**
+   *
+   * @param out
+   * @param v
+   * @throws IOException
+   */
+  public static void writeIntLittleEndian(byte[] out, int pos, int v) throws IOException {
+    // TODO: this is duplicated code in LittleEndianDataOutputStream
+    out[pos] = (byte)((v >>>  0) & 0xFF);
+    out[pos + 1] = (byte)((v >>>  8) & 0xFF);
+    out[pos + 2] = (byte)((v >>> 16) & 0xFF);
+    out[pos + 3] = (byte)((v >>> 24) & 0xFF);
+    if (Log.DEBUG) LOG.debug("write le int: " + v + " => "+ ((v >>>  0) & 0xFF) + " " + ((v >>>  8) & 0xFF) + " " + ((v >>> 16) & 0xFF) + " " + ((v >>> 24) & 0xFF));
+  }
+
+  /**
    * Write a little endian int to out, using the the number of bytes required by
    * bit width
    */
