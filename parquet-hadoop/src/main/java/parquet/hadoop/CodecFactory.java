@@ -54,7 +54,7 @@ class CodecFactory {
       final BytesInput decompressed;
       if (codec != null) {
         decompressor.reset();
-        InputStream is = codec.createInputStream(new ByteArrayInputStream(bytes.toByteArray()), decompressor);
+        InputStream is = codec.createInputStream(new ByteArrayInputStream(bytes.toByteArray(), 0 , (int) bytes.size()), decompressor);
         decompressed = BytesInput.from(is, uncompressedSize);
       } else {
         decompressed = bytes;
