@@ -23,9 +23,7 @@ public enum OriginalType {
   ENUM,
   DECIMAL,
   DATE,
-  TIME,
-  FINETIME,
-  TIMESTAMP,
-  TIMESTAMPTZ,
+  TIME_MILLIS,
+  TIMESTAMP_MILLIS,
   INTERVAL
 }

@@ -287,14 +287,16 @@ public class ParquetMetadataConverter {
         return OriginalType.DECIMAL;
       case DATE:
         return OriginalType.DATE;
-      case TIME:
-        return OriginalType.TIME;
-      case FINETIME:
-        return OriginalType.FINETIME;
-      case TIMESTAMP:
-        return OriginalType.TIMESTAMP;
-      case TIMESTAMPTZ:
-        return OriginalType.TIMESTAMPTZ;
+      case TIME_MILLIS:
+        return OriginalType.TIME_MILLIS;
+      // TODO - decide if this should be added back after later discussion
+//      case TIME_MIRCOS:
+//        return OriginalType.FINETIME;
+      case TIMESTAMP_MILLIS:
+        return OriginalType.TIMESTAMP_MILLIS;
+      // TODO - Same as above, decide if this should be added back after later discussion
+//      case TIMESTAMPTZ:
+//        return OriginalType.TIMESTAMPTZ;
       case INTERVAL:
         return OriginalType.INTERVAL;
       default:
@@ -318,14 +320,16 @@ public class ParquetMetadataConverter {
         return ConvertedType.DECIMAL;
       case DATE:
         return ConvertedType.DATE;
-      case TIME:
-        return ConvertedType.TIME;
-      case FINETIME:
-        return ConvertedType.FINETIME;
-      case TIMESTAMP:
-        return ConvertedType.TIMESTAMP;
-      case TIMESTAMPTZ:
-        return ConvertedType.TIMESTAMPTZ;
+      case TIME_MILLIS:
+        return ConvertedType.TIME_MILLIS;
+      // TODO - decide if this should be added back after later discussion
+//      case FINETIME:
+//        return ConvertedType.FINETIME;
+      case TIMESTAMP_MILLIS:
+        return ConvertedType.TIMESTAMP_MILLIS;
+      // TODO - Same as above, decide if this should be added back after later discussion
+//      case TIMESTAMPTZ:
+//        return ConvertedType.TIMESTAMPTZ;
       case INTERVAL:
         return ConvertedType.INTERVAL;
      default:
