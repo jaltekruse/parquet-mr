@@ -19,6 +19,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -35,6 +36,7 @@ import org.codehaus.jackson.node.NullNode;
 import org.junit.Test;
 import parquet.hadoop.ParquetWriter;
 import parquet.hadoop.api.WriteSupport;
+import parquet.hadoop.metadata.CompressionCodecName;
 import parquet.io.api.Binary;
 import parquet.io.api.RecordConsumer;
 import parquet.schema.MessageTypeParser;
@@ -195,6 +197,98 @@ public class TestReadWrite {
     assertEquals(ImmutableMap.of("a", 1, "b", 2), nextRecord.get("mymap"));
     assertEquals(emptyMap, nextRecord.get("myemptymap"));
     assertEquals(genericFixed, nextRecord.get("myfixed"));
+  }
+
+  public static final int DEFAULT_BLOCK_SIZE = 128 * 1024 * 1024;
+  public static final int DEFAULT_PAGE_SIZE = 1 * 1024 * 1024;
+
+  @Test
+  public void testDictionaryColumns() throws IOException {
+
+    Schema schema = new Schema.Parser().parse(
+      Resources.getResource("all_dictionary_encodable_types.avsc").openStream());
+
+    File tmp = new File("/tmp/drilltest/non_nullable_dictionary.parquet");
+//    tmp.deleteOnExit();
+    tmp.delete();
+    Path file = new Path(tmp.getPath());
+
+    boolean dictionaryEnabled = true;
+    AvroParquetWriter<GenericRecord> writer = new
+      AvroParquetWriter<GenericRecord>(file, schema, CompressionCodecName.SNAPPY, DEFAULT_BLOCK_SIZE, DEFAULT_PAGE_SIZE, dictionaryEnabled);
+
+    GenericData.Record record1 = new GenericRecordBuilder(schema)
+      .set("myint", 1)
+      .set("mylong", 2L)
+      .set("myfloat", 3.1f)
+      .set("mydouble", 4.1)
+      .set("mybytes", ByteBuffer.wrap("hello".getBytes(Charsets.UTF_8)))
+      .set("mystring", "hello")
+      .build();
+
+    GenericData.Record record2 = new GenericRecordBuilder(schema)
+      .set("myint", 100)
+      .set("mylong", 200L)
+      .set("myfloat", 300.1f)
+      .set("mydouble", 400.1)
+      .set("mybytes", ByteBuffer.wrap("random bytes".getBytes(Charsets.UTF_8)))
+      .set("mystring", "Luke, I am your father")
+      .build();
+
+    GenericData.Record record3 = new GenericRecordBuilder(schema)
+      .set("myint", Integer.MAX_VALUE)
+      .set("mylong", Long.MAX_VALUE)
+      .set("myfloat", Float.MAX_VALUE)
+      .set("mydouble", Double.MAX_VALUE)
+      .set("mybytes", ByteBuffer.wrap("Geology rocks!".getBytes(Charsets.UTF_8)))
+      .set("mystring", "Search your feelings, you know it to be true")
+      .build();
+
+    for (int i = 0; i < 10000000; i++){
+      writer.write(record1);
+      writer.write(record2);
+      writer.write(record3);
+    }
+    writer.close();
+
+  }
+
+  @Test
+  public void writeFixedBinaryFile() throws IOException {
+    String schemaStr = "{" +
+      "  \"name\" : \"myrecord\"," +
+      "  \"namespace\": \"parquet.avro\"," +
+      "  \"type\" : \"record\"," +
+      "  \"fields\" : [ {" +
+      "    \"name\" : \"myfixed\"," +
+      "    \"type\" : {" +
+      "      \"type\" : \"fixed\"," +
+      "      \"name\" : \"ignored3\"," +
+      "      \"namespace\" : \"\"," +
+      "      \"size\" : 5" +
+      "    }" +
+      "  } ]" +
+      "}";
+    Schema schema = new Schema.Parser().parse(schemaStr);
+
+
+    File tmp = new File("/tmp/drilltest/fixed_binary.parquet");
+//    tmp.deleteOnExit();
+    tmp.delete();
+    Path file = new Path(tmp.getPath());
+
+    AvroParquetWriter<GenericRecord> writer = new
+      AvroParquetWriter<GenericRecord>(file, schema);
+
+    GenericFixed genericFixed = new GenericData.Fixed(
+      Schema.createFixed("fixed", null, null, 5), new byte[] { (byte) 65, 64, 63, 62, 61 });
+
+    GenericData.Record record = new GenericRecordBuilder(schema)
+      .set("myfixed", genericFixed).build();
+    for (int i = 0; i < 100000000; i++){
+      writer.write(record);
+    }
+    writer.close();
   }
 
   @Test
