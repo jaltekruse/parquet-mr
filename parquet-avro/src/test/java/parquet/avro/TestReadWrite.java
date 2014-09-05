@@ -292,44 +292,6 @@ public class TestReadWrite {
   }
 
   @Test
-  public void writeFixedBinaryFile() throws IOException {
-    String schemaStr = "{" +
-      "  \"name\" : \"myrecord\"," +
-      "  \"namespace\": \"parquet.avro\"," +
-      "  \"type\" : \"record\"," +
-      "  \"fields\" : [ {" +
-      "    \"name\" : \"myfixed\"," +
-      "    \"type\" : {" +
-      "      \"type\" : \"fixed\"," +
-      "      \"name\" : \"ignored3\"," +
-      "      \"namespace\" : \"\"," +
-      "      \"size\" : 5" +
-      "    }" +
-      "  } ]" +
-      "}";
-    Schema schema = new Schema.Parser().parse(schemaStr);
-
-
-    File tmp = new File("/tmp/drilltest/fixed_binary.parquet");
-//    tmp.deleteOnExit();
-    tmp.delete();
-    Path file = new Path(tmp.getPath());
-
-    AvroParquetWriter<GenericRecord> writer = new
-      AvroParquetWriter<GenericRecord>(file, schema);
-
-    GenericFixed genericFixed = new GenericData.Fixed(
-      Schema.createFixed("fixed", null, null, 5), new byte[] { (byte) 65, 64, 63, 62, 61 });
-
-    GenericData.Record record = new GenericRecordBuilder(schema)
-      .set("myfixed", genericFixed).build();
-    for (int i = 0; i < 1000000; i++){
-      writer.write(record);
-    }
-    writer.close();
-  }
-
-  @Test
   public void testAllUsingDefaultAvroSchema() throws Exception {
     File tmp = File.createTempFile(getClass().getSimpleName(), ".tmp");
     tmp.deleteOnExit();
