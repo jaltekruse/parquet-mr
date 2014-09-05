@@ -46,18 +46,23 @@ public class TestParquetStorer {
 
   @Test
   public void testStorer() throws ExecException, Exception {
-    String out = "target/out";
-    int rows = 1000;
+    String out = "/tmp/parquet_with_nulls_should_sum_1000.parquet";
+    int rows = 10000;
     Properties props = new Properties();
     props.setProperty("parquet.compression", "uncompressed");
     props.setProperty("parquet.page.size", "1000");
     PigServer pigServer = new PigServer(ExecType.LOCAL, props);
     Data data = Storage.resetData(pigServer);
     Collection<Tuple> list = new ArrayList<Tuple>();
-    for (int i = 0; i < rows; i++) {
-      list.add(tuple("a"+i));
+    for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < rows; j++) {
+        list.add(tuple(1));
+      }
+      for (int j = 0; j < rows; j++) {
+        list.add(tuple(null, null));
+      }
     }
-    data.set("in", "a:chararray", list );
+    data.set("in", "a:int", list );
     pigServer.setBatchOn();
     pigServer.registerQuery("A = LOAD 'in' USING mock.Storage();");
     pigServer.deleteFile(out);
