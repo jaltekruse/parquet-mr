@@ -45,6 +45,47 @@ import com.google.common.collect.Collections2;
 public class TestParquetStorer {
 
   @Test
+  public void nullFileGen() throws ExecException, Exception {
+    String out = "/tmp/nullable_varlen_with_nulls.parquet";
+    int rows = 1000;
+    Properties props = new Properties();
+    props.setProperty("parquet.compression", "uncompressed");
+    props.setProperty("parquet.page.size", "1000");
+        props.setProperty("parquet.enable.dictionary", "false");
+    PigServer pigServer = new PigServer(ExecType.LOCAL, props);
+    Data data = Storage.resetData(pigServer);
+    Collection<Tuple> list = new ArrayList<Tuple>();
+    for (int i = 0; i < rows; i++) {
+      list.add(tuple(""));
+      list.add(tuple("longer string"));
+      list.add(tuple(null, null));
+    }
+    data.set("in", "a:chararray", list );
+    pigServer.setBatchOn();
+    pigServer.registerQuery("A = LOAD 'in' USING mock.Storage();");
+    pigServer.deleteFile(out);
+    pigServer.registerQuery("Store A into '"+out+"' using "+ParquetStorer.class.getName()+"();");
+    if (pigServer.executeBatch().get(0).getStatus() != JOB_STATUS.COMPLETED) {
+      throw new RuntimeException("Job failed", pigServer.executeBatch().get(0).getException());
+    }
+
+    pigServer.registerQuery("B = LOAD '"+out+"' USING "+ParquetLoader.class.getName()+"();");
+    pigServer.registerQuery("Store B into 'out' using mock.Storage();");
+    if (pigServer.executeBatch().get(0).getStatus() != JOB_STATUS.COMPLETED) {
+      throw new RuntimeException("Job failed", pigServer.executeBatch().get(0).getException());
+    }
+
+    List<Tuple> result = data.get("out");
+
+    assertEquals(rows, result.size());
+    int i = 0;
+    for (Tuple tuple : result) {
+      assertEquals("a"+i, tuple.get(0));
+      ++i;
+    }
+  }
+
+  @Test
   public void testStorer() throws ExecException, Exception {
     String out = "/tmp/parquet_with_nulls_should_sum_1000.parquet";
     int rows = 10000;

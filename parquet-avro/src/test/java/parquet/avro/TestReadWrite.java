@@ -19,6 +19,7 @@ import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Resources;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -129,7 +130,7 @@ public class TestReadWrite {
   @Test
   public void testAll() throws Exception {
     Schema schema = new Schema.Parser().parse(
-        Resources.getResource("all.avsc").openStream());
+      Resources.getResource("all.avsc").openStream());
 
     File tmp = File.createTempFile(getClass().getSimpleName(), ".tmp");
     tmp.deleteOnExit();
@@ -195,6 +196,44 @@ public class TestReadWrite {
     assertEquals(ImmutableMap.of("a", 1, "b", 2), nextRecord.get("mymap"));
     assertEquals(emptyMap, nextRecord.get("myemptymap"));
     assertEquals(genericFixed, nextRecord.get("myfixed"));
+  }
+
+  @Test
+  public void writeFixedBinaryFile() throws IOException {
+    String schemaStr = "{" +
+      "  \"name\" : \"myrecord\"," +
+      "  \"namespace\": \"parquet.avro\"," +
+      "  \"type\" : \"record\"," +
+      "  \"fields\" : [ {" +
+      "    \"name\" : \"myfixed\"," +
+      "    \"type\" : {" +
+      "      \"type\" : \"fixed\"," +
+      "      \"name\" : \"ignored3\"," +
+      "      \"namespace\" : \"\"," +
+      "      \"size\" : 5" +
+      "    }" +
+      "  } ]" +
+      "}";
+    Schema schema = new Schema.Parser().parse(schemaStr);
+
+
+    File tmp = new File("/tmp/drilltest/fixed_binary.parquet");
+//    tmp.deleteOnExit();
+    tmp.delete();
+    Path file = new Path(tmp.getPath());
+
+    AvroParquetWriter<GenericRecord> writer = new
+      AvroParquetWriter<GenericRecord>(file, schema);
+
+    GenericFixed genericFixed = new GenericData.Fixed(
+      Schema.createFixed("fixed", null, null, 5), new byte[] { (byte) 65, 64, 63, 62, 61 });
+
+    GenericData.Record record = new GenericRecordBuilder(schema)
+      .set("myfixed", genericFixed).build();
+    for (int i = 0; i < 1000000; i++){
+      writer.write(record);
+    }
+    writer.close();
   }
 
   @Test
