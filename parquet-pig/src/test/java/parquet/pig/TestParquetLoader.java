@@ -255,7 +255,7 @@ public class TestParquetLoader {
     PigServer pigServer = new PigServer(ExecType.LOCAL); 
     pigServer.setValidateEachStatement(true);
     String out = "target/out";
-    int rows = 10;
+    int rows = 10000000;
     Data data = Storage.resetData(pigServer);
     List<Tuple> list = new ArrayList<Tuple>();
     for (int i = 0; i < rows; i++) {
