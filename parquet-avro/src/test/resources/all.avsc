@@ -26,56 +26,7 @@
   }, {
     "name" : "mystring",
     "type" : "string"
-  }, {
-    "name" : "mynestedrecord",
-    "type" : {
-      "type" : "record",
-      "name" : "ignored1",
-      "namespace" : "",
-      "fields" : [ {
-        "name" : "mynestedint",
-        "type" : "int"
-      } ]
-    }
-  }, {
-    "name" : "myenum",
-    "type" : {
-      "type" : "enum",
-      "name" : "ignored2",
-      "namespace" : "",
-      "symbols" : [ "a", "b" ]
-    }
-  }, {
-    "name" : "myarray",
-    "type" : {
-      "type" : "array",
-      "items" : "int"
-    }
-  }, {
-    "name" : "myemptyarray",
-    "type" : {
-      "type" : "array",
-      "items" : "int"
-    }
-  }, {
-    "name" : "myoptionalarray",
-    "type" : [ "null", {
-       "type" : "array",
-       "items" : "int"
-    }]
-  }, {
-    "name" : "mymap",
-    "type" : {
-      "type" : "map",
-      "values" : "int"
-    }
-  }, {
-    "name" : "myemptymap",
-    "type" : {
-      "type" : "map",
-      "values" : "int"
-    }
-  }, {
+  },{
     "name" : "myfixed",
     "type" : {
       "type" : "fixed",
