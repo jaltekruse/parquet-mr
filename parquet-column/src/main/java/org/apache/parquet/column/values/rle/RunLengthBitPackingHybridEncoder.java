@@ -20,6 +20,8 @@ package org.apache.parquet.column.values.rle;
 
 import java.io.IOException;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.Log;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.BytesInput;
@@ -116,7 +118,9 @@ public class RunLengthBitPackingHybridEncoder {
 
   private boolean toBytesCalled;
 
-  public RunLengthBitPackingHybridEncoder(int bitWidth, int initialCapacity, int pageSize) {
+  private ByteBufferAllocator allocator;
+
+  public RunLengthBitPackingHybridEncoder(int bitWidth, int initialCapacity, int pageSize, ByteBufferAllocator allocator) {
     if (DEBUG) {
       LOG.debug(String.format("Encoding: RunLengthBitPackingHybridEncoder with "
         + "bithWidth: %d initialCapacity %d", bitWidth, initialCapacity));
@@ -125,7 +129,8 @@ public class RunLengthBitPackingHybridEncoder {
     Preconditions.checkArgument(bitWidth >= 0 && bitWidth <= 32, "bitWidth must be >= 0 and <= 32");
 
     this.bitWidth = bitWidth;
-    this.baos = new CapacityByteArrayOutputStream(initialCapacity, pageSize);
+    this.allocator = allocator;
+    this.baos = new CapacityByteArrayOutputStream(initialCapacity, pageSize, this.allocator);
     this.packBuffer = new byte[bitWidth];
     this.bufferedValues = new int[8];
     this.packer = Packer.LITTLE_ENDIAN.newBytePacker(bitWidth);
@@ -279,6 +284,18 @@ public class RunLengthBitPackingHybridEncoder {
    */
   public void reset() {
     reset(true);
+  }
+
+  public void close() {
+    reset(false);
+    try {
+      baos.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){
+        // Should not be a common exception case, only if there is a low level I/O issue that will likely not
+        // be recoverable.
+      };
+    }
   }
 
   public long getBufferedSize() {

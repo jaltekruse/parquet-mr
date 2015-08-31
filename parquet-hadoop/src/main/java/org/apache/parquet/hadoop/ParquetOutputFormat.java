@@ -44,6 +44,7 @@ import org.apache.parquet.hadoop.api.WriteSupport.WriteContext;
 import org.apache.parquet.hadoop.codec.CodecConfig;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.hadoop.util.ConfigurationUtil;
+import parquet.hadoop.HeapCodecFactory;
 
 /**
  * OutputFormat to write to a Parquet file
@@ -292,7 +293,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
         throws IOException, InterruptedException {
     final WriteSupport<T> writeSupport = getWriteSupport(conf);
 
-    CodecFactory codecFactory = new CodecFactory(conf);
+    CodecFactory codecFactory = new HeapCodecFactory(conf);
     long blockSize = getLongBlockSize(conf);
     if (INFO) LOG.info("Parquet block size to " + blockSize);
     int pageSize = getPageSize(conf);

@@ -132,4 +132,11 @@ public class ColumnWriteStoreV1 implements ColumnWriteStore {
     // V1 does not take record boundaries into account
   }
 
+  public void close() {
+    Collection<ColumnWriterV1> values = columns.values();
+    for (ColumnWriterV1 memColumn : values) {
+      memColumn.close();
+    }
+  }
+
 }

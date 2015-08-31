@@ -29,6 +29,8 @@ import org.apache.parquet.column.ParquetProperties.WriterVersion;
 import org.apache.parquet.hadoop.api.WriteSupport;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.apache.parquet.schema.MessageType;
+import parquet.bytes.HeapByteBufferAllocator;
+import parquet.hadoop.HeapCodecFactory;
 
 /**
  * Write records to a Parquet file.
@@ -185,6 +187,28 @@ public class ParquetWriter<T> implements Closeable {
         enableDictionary, validating, writerVersion, conf);
   }
 
+  // TODO - delete me
+//    WriteSupport.WriteContext writeContext = writeSupport.init(conf);
+//    MessageType schema = writeContext.getSchema();
+//
+//    ParquetFileWriter fileWriter = new ParquetFileWriter(conf, schema, file);
+//    fileWriter.start();
+//
+//    CodecFactory codecFactory = new HeapCodecFactory(conf);
+//    HeapCodecFactory.BytesCompressor compressor =	codecFactory.getCompressor(compressionCodecName, 0);
+//    this.writer = new InternalParquetRecordWriter<T>(
+//        fileWriter,
+//        writeSupport,
+//        schema,
+//        writeContext.getExtraMetaData(),
+//        blockSize,
+//        pageSize,
+//        compressor,
+//        dictionaryPageSize,
+//        enableDictionary,
+//        validating,
+//        writerVersion,
+//        new HeapByteBufferAllocator());
   /**
    * Create a new ParquetWriter.
    *
@@ -267,8 +291,10 @@ public class ParquetWriter<T> implements Closeable {
         conf, schema, file, mode, blockSize, maxPaddingSize);
     fileWriter.start();
 
-    CodecFactory codecFactory = new CodecFactory(conf);
-    CodecFactory.BytesCompressor compressor =	codecFactory.getCompressor(compressionCodecName, 0);
+    CodecFactory codecFactory = new HeapCodecFactory(conf);
+    HeapCodecFactory.BytesCompressor compressor =	codecFactory.getCompressor(compressionCodecName, 0);
+//    CodecFactory codecFactory = new CodecFactory(conf);
+//    CodecFactory.BytesCompressor compressor =	codecFactory.getCompressor(compressionCodecName, 0);
     this.writer = new InternalParquetRecordWriter<T>(
         fileWriter,
         writeSupport,
@@ -280,7 +306,8 @@ public class ParquetWriter<T> implements Closeable {
         dictionaryPageSize,
         enableDictionary,
         validating,
-        writerVersion);
+        writerVersion,
+        new HeapByteBufferAllocator());
   }
 
   public void write(T object) throws IOException {

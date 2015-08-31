@@ -50,6 +50,7 @@ public class ByteBasedBitPackingGenerator {
     }
     FileWriter fw = new FileWriter(file);
     fw.append("package org.apache.parquet.column.values.bitpacking;\n");
+    fw.append("import java.nio.ByteBuffer;\n");
     fw.append("\n");
     fw.append("/**\n");
     if (msbFirst) {
@@ -206,6 +207,9 @@ public class ByteBasedBitPackingGenerator {
   private static void generateUnpack(FileWriter fw, int bitWidth, int batch, boolean msbFirst)
       throws IOException {
     fw.append("    public final void unpack" + (batch * 8) + "Values(final byte[] in, final int inPos, final int[] out, final int outPos) {\n");
+    fw.append("      unpack" + (batch * 8) + "Values(ByteBuffer.wrap(in), inPos, out, outPos);\n" );
+    fw.append("    }\n");
+    fw.append("    public final void unpack" + (batch * 8) + "Values(final ByteBuffer in, final int inPos, final int[] out, final int outPos) {\n");
     if (bitWidth > 0) {
       int mask = genMask(bitWidth);
       for (int valueIndex = 0; valueIndex < (batch * 8); ++valueIndex) {
@@ -228,7 +232,7 @@ public class ByteBasedBitPackingGenerator {
           } else if (shift > 0){
             shiftString = "<<  " + shift;
           }
-          fw.append(" (((((int)in[" + align(byteIndex, 2) + " + inPos]) & 255) " + shiftString + ") & " + mask + ")");
+          fw.append(" (((((int)in.get(" + align(byteIndex, 2) + " + inPos)) & 255) " + shiftString + ") & " + mask + ")");
         }
         fw.append(";\n");
       }

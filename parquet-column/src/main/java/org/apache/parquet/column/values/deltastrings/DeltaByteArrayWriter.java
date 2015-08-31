@@ -18,12 +18,15 @@
  */
 package org.apache.parquet.column.values.deltastrings;
 
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.values.ValuesWriter;
 import org.apache.parquet.column.values.delta.DeltaBinaryPackingValuesWriter;
 import org.apache.parquet.column.values.deltalengthbytearray.DeltaLengthByteArrayValuesWriter;
 import org.apache.parquet.io.api.Binary;
+
+import java.nio.ByteBuffer;
 
 /**
  * Write prefix lengths using delta encoding, followed by suffixes with Delta length byte arrays
@@ -40,10 +43,12 @@ public class DeltaByteArrayWriter extends ValuesWriter{
   private ValuesWriter prefixLengthWriter;
   private ValuesWriter suffixWriter;
   private byte[] previous;
+  private ByteBufferAllocator allocator;
 
-  public DeltaByteArrayWriter(int initialCapacity, int pageSize) {
-    this.prefixLengthWriter = new DeltaBinaryPackingValuesWriter(128, 4, initialCapacity, pageSize);
-    this.suffixWriter = new DeltaLengthByteArrayValuesWriter(initialCapacity, pageSize);
+  public DeltaByteArrayWriter(int initialCapacity, int pageSize, ByteBufferAllocator allocator) {
+    this.allocator=allocator;
+    this.prefixLengthWriter = new DeltaBinaryPackingValuesWriter(128, 4, initialCapacity, pageSize, this.allocator);
+    this.suffixWriter = new DeltaLengthByteArrayValuesWriter(initialCapacity, pageSize, this.allocator);
     this.previous = new byte[0];
   }
 
@@ -70,6 +75,12 @@ public class DeltaByteArrayWriter extends ValuesWriter{
   }
 
   @Override
+  public void close() {
+    prefixLengthWriter.close();
+    suffixWriter.close();
+  }
+
+  @Override
   public long getAllocatedSize() {
     return prefixLengthWriter.getAllocatedSize() + suffixWriter.getAllocatedSize();
   }
@@ -85,6 +96,7 @@ public class DeltaByteArrayWriter extends ValuesWriter{
     int i = 0;
     byte[] vb = v.getBytes();
     int length = previous.length < vb.length ? previous.length : vb.length;
+    // find the number of matching prefix bytes between this value and the previous one
     for(i = 0; (i < length) && (previous[i] == vb[i]); i++);
     prefixLengthWriter.writeInteger(i);
     suffixWriter.writeBytes(v.slice(i, vb.length - i));

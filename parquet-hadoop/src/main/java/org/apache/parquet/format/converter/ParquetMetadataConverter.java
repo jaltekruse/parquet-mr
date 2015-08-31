@@ -36,6 +36,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.parquet.CorruptStatistics;
 import org.apache.parquet.Log;
 import org.apache.parquet.hadoop.metadata.ColumnPath;
@@ -68,6 +69,7 @@ import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type.Repetition;
 import org.apache.parquet.schema.TypeVisitor;
 import org.apache.parquet.schema.Types;
+import parquet.hadoop.util.CompatibilityUtil;
 
 // TODO: This file has become too long!
 // TODO: Lets split it up: https://issues.apache.org/jira/browse/PARQUET-310
@@ -546,6 +548,14 @@ public class ParquetMetadataConverter {
     return parquetMetadata;
   }
 
+  public ParquetMetadata readParquetMetadata(FSDataInputStream from)
+      throws IOException {
+    FileMetaData fileMetaData = CompatibilityUtil.read(from, new FileMetaData());
+    if (Log.DEBUG) LOG.debug(fileMetaData);
+    ParquetMetadata parquetMetadata = fromParquetMetadata(fileMetaData);
+    if (Log.DEBUG) LOG.debug(ParquetMetadata.toPrettyJSON(parquetMetadata));
+    return parquetMetadata;
+  }
   public ParquetMetadata fromParquetMetadata(FileMetaData parquetMetadata) throws IOException {
     MessageType messageType = fromParquetSchema(parquetMetadata.getSchema());
     List<BlockMetaData> blocks = new ArrayList<BlockMetaData>();

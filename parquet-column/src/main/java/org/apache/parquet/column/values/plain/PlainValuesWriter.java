@@ -21,6 +21,8 @@ package org.apache.parquet.column.values.plain;
 import java.io.IOException;
 import java.nio.charset.Charset;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.Log;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.CapacityByteArrayOutputStream;
@@ -43,9 +45,11 @@ public class PlainValuesWriter extends ValuesWriter {
 
   private CapacityByteArrayOutputStream arrayOut;
   private LittleEndianDataOutputStream out;
+  private ByteBufferAllocator allocator;
 
-  public PlainValuesWriter(int initialSize, int pageSize) {
-    arrayOut = new CapacityByteArrayOutputStream(initialSize, pageSize);
+  public PlainValuesWriter(int initialSize, int pageSize, ByteBufferAllocator allocator) {
+    this.allocator = allocator;
+    arrayOut = new CapacityByteArrayOutputStream(initialSize, pageSize, allocator);
     out = new LittleEndianDataOutputStream(arrayOut);
   }
 
@@ -123,6 +127,18 @@ public class PlainValuesWriter extends ValuesWriter {
   @Override
   public void reset() {
     arrayOut.reset();
+  }
+
+  @Override
+  public void close() {
+    try {
+      arrayOut.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){
+        // Should not be a common exception case, only if there is a low level I/O issue that will likely not
+        // be recoverable.
+      };
+    }
   }
 
   @Override

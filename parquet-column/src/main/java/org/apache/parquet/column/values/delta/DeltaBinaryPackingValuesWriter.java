@@ -18,6 +18,8 @@
  */
 package org.apache.parquet.column.values.delta;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.bytes.CapacityByteArrayOutputStream;
@@ -103,6 +105,8 @@ public class DeltaBinaryPackingValuesWriter extends ValuesWriter {
    */
   private int previousValue = 0;
 
+  private ByteBufferAllocator allocator;
+
   /**
    * min delta is written to the beginning of each block.
    * it's zig-zag encoded. The deltas stored in each block is actually the difference to min delta,
@@ -111,16 +115,17 @@ public class DeltaBinaryPackingValuesWriter extends ValuesWriter {
    */
   private int minDeltaInCurrentBlock = Integer.MAX_VALUE;
 
-  public DeltaBinaryPackingValuesWriter(int slabSize, int pageSize) {
-    this(DEFAULT_NUM_BLOCK_VALUES, DEFAULT_NUM_MINIBLOCKS, slabSize, pageSize);
+  public DeltaBinaryPackingValuesWriter(int slabSize, int pageSize, ByteBufferAllocator allocator) {
+    this(DEFAULT_NUM_BLOCK_VALUES, DEFAULT_NUM_MINIBLOCKS, slabSize, pageSize, allocator);
   }
 
-  public DeltaBinaryPackingValuesWriter(int blockSizeInValues, int miniBlockNum, int slabSize, int pageSize) {
+  public DeltaBinaryPackingValuesWriter(int blockSizeInValues, int miniBlockNum, int slabSize, int pageSize, ByteBufferAllocator allocator) {
     this.config = new DeltaBinaryPackingConfig(blockSizeInValues, miniBlockNum);
     bitWidths = new int[config.miniBlockNumInABlock];
     deltaBlockBuffer = new int[blockSizeInValues];
     miniBlockByteBuffer = new byte[config.miniBlockSizeInValues * MAX_BITWIDTH];
-    baos = new CapacityByteArrayOutputStream(slabSize, pageSize);
+    this.allocator = allocator;
+    baos = new CapacityByteArrayOutputStream(slabSize, pageSize, this.allocator);
   }
 
   @Override
@@ -253,6 +258,21 @@ public class DeltaBinaryPackingValuesWriter extends ValuesWriter {
   public void reset() {
     this.totalValueCount = 0;
     this.baos.reset();
+    this.deltaValuesToFlush = 0;
+    this.minDeltaInCurrentBlock = Integer.MAX_VALUE;
+  }
+
+  @Override
+  public void close() {
+    this.totalValueCount = 0;
+    try {
+      this.baos.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){
+        // Should not be a common exception case, only if there is a low level I/O issue that will likely not
+        // be recoverable.
+      };
+    }
     this.deltaValuesToFlush = 0;
     this.minDeltaInCurrentBlock = Integer.MAX_VALUE;
   }

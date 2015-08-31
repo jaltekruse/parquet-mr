@@ -20,6 +20,7 @@ package org.apache.parquet.column.page;
 
 import java.io.IOException;
 
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.column.Encoding;
 import org.apache.parquet.column.statistics.Statistics;
@@ -54,7 +55,6 @@ public interface PageWriter {
    * @param dataEncoding the encoding for the data
    * @param data the data encoded with dataEncoding
    * @param statistics optional stats for this page
-   * @param metadata optional free form key values
    * @throws IOException
    */
   void writePageV2(
@@ -85,5 +85,23 @@ public interface PageWriter {
    * @return a string presenting a summary of how memory is used
    */
   String memUsageString(String prefix);
+
+  /**
+   * Gets the associated ByteBuffer allocator. The allocator is passed in all the way down to
+   * the Column ValuesWriter(s).
+   * @return
+   */
+  ByteBufferAllocator getAllocator();
+
+  /**
+   * Reset the page writer. Reset/reallocate any resources.
+   */
+  public void reset();
+
+
+  /**
+   * Close the page writer. Free any resources.
+   */
+  public void close();
 
 }

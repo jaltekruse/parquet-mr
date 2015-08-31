@@ -24,6 +24,8 @@ import static org.apache.parquet.bytes.BytesInput.copy;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import parquet.bytes.ByteBufferAllocator;
+import parquet.bytes.HeapByteBufferAllocator;
 
 import org.apache.parquet.Log;
 import org.apache.parquet.bytes.BytesInput;
@@ -43,6 +45,7 @@ public class MemPageWriter implements PageWriter {
   private DictionaryPage dictionaryPage;
   private long memSize = 0;
   private long totalValueCount = 0;
+  private ByteBufferAllocator allocator;
 
   @Override
   public void writePage(BytesInput bytesInput, int valueCount, Statistics statistics, Encoding rlEncoding, Encoding dlEncoding, Encoding valuesEncoding)
@@ -109,5 +112,21 @@ public class MemPageWriter implements PageWriter {
     return String.format("%s %,d bytes", prefix, memSize);
 
   }
+
+  @Override
+  public ByteBufferAllocator getAllocator() {
+    if(this.allocator==null)
+      this.allocator=new HeapByteBufferAllocator();
+    return this.allocator;
+  }
+
+  @Override
+  public void reset() {
+  }
+
+  @Override
+  public void close() {
+  }
+
 
 }

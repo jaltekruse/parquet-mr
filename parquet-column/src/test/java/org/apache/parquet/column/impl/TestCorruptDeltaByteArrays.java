@@ -35,7 +35,9 @@ import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.io.api.PrimitiveConverter;
 import org.apache.parquet.schema.PrimitiveType;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
+import parquet.bytes.HeapByteBufferAllocator;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -76,7 +78,7 @@ public class TestCorruptDeltaByteArrays {
 
   @Test
   public void testReassemblyWithCorruptPage() throws Exception {
-    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100);
+    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100, new HeapByteBufferAllocator());
 
     String lastValue = null;
     for (int i = 0; i < 10; i += 1) {
@@ -119,7 +121,7 @@ public class TestCorruptDeltaByteArrays {
 
   @Test
   public void testReassemblyWithoutCorruption() throws Exception {
-    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100);
+    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100, new HeapByteBufferAllocator());
 
     for (int i = 0; i < 10; i += 1) {
       writer.writeBytes(Binary.fromString(str(i)));
@@ -150,7 +152,7 @@ public class TestCorruptDeltaByteArrays {
 
   @Test
   public void testOldReassemblyWithoutCorruption() throws Exception {
-    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100);
+    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100, new HeapByteBufferAllocator());
 
     for (int i = 0; i < 10; i += 1) {
       writer.writeBytes(Binary.fromString(str(i)));
@@ -187,13 +189,13 @@ public class TestCorruptDeltaByteArrays {
 
     // get generic repetition and definition level bytes to use for pages
     ValuesWriter rdValues = ParquetProperties
-        .getColumnDescriptorValuesWriter(0, 10, 100);
+        .getColumnDescriptorValuesWriter(0, 10, 100, new HeapByteBufferAllocator());
     for (int i = 0; i < 10; i += 1) {
       rdValues.writeInteger(0);
     }
     // use a byte array backed BytesInput because it is reused
     BytesInput rd = BytesInput.from(rdValues.getBytes().toByteArray());
-    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100);
+    DeltaByteArrayWriter writer = new DeltaByteArrayWriter(10, 100, new HeapByteBufferAllocator());
     String lastValue = null;
     List<String> values = new ArrayList<String>();
     for (int i = 0; i < 10; i += 1) {

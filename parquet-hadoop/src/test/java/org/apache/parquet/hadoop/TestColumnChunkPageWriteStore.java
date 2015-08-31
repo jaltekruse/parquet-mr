@@ -46,6 +46,7 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.LittleEndianDataInputStream;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -61,6 +62,8 @@ import org.apache.parquet.hadoop.metadata.ParquetMetadata;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.MessageTypeParser;
 import org.apache.parquet.schema.Types;
+import parquet.bytes.HeapByteBufferAllocator;
+import parquet.hadoop.HeapCodecFactory;
 
 public class TestColumnChunkPageWriteStore {
 
@@ -101,7 +104,7 @@ public class TestColumnChunkPageWriteStore {
       writer.start();
       writer.startBlock(rowCount);
       {
-        ColumnChunkPageWriteStore store = new ColumnChunkPageWriteStore(compressor(GZIP), schema , initialSize);
+        ColumnChunkPageWriteStore store = new ColumnChunkPageWriteStore(compressor(GZIP), schema , new HeapByteBufferAllocator());
         PageWriter pageWriter = store.getPageWriter(col);
         pageWriter.writePageV2(
             rowCount, nullCount, valueCount,
@@ -158,8 +161,10 @@ public class TestColumnChunkPageWriteStore {
     int fakeCount = 3;
     BinaryStatistics fakeStats = new BinaryStatistics();
 
+    // TODO - look back at this, an allocator was being passed here in the ByteBuffer changes
+    // see comment at this constructor
     ColumnChunkPageWriteStore store = new ColumnChunkPageWriteStore(
-        compressor(UNCOMPRESSED), schema, initialSize);
+        compressor(UNCOMPRESSED), schema, new HeapByteBufferAllocator());
 
     for (ColumnDescriptor col : schema.getColumns()) {
       PageWriter pageWriter = store.getPageWriter(col);
@@ -175,7 +180,7 @@ public class TestColumnChunkPageWriteStore {
     }
   }
 
-  private CodecFactory.BytesCompressor compressor(CompressionCodecName codec) {
-    return new CodecFactory(conf).getCompressor(codec, pageSize);
+  private HeapCodecFactory.BytesCompressor compressor(CompressionCodecName codec) {
+    return new HeapCodecFactory(conf).getCompressor(codec, pageSize);
   }
 }

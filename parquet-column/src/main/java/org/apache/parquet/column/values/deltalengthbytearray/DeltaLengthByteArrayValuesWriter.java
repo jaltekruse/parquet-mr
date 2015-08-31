@@ -20,6 +20,8 @@ package org.apache.parquet.column.values.deltalengthbytearray;
 
 import java.io.IOException;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.Log;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.CapacityByteArrayOutputStream;
@@ -47,14 +49,16 @@ public class DeltaLengthByteArrayValuesWriter extends ValuesWriter {
   private ValuesWriter lengthWriter;
   private CapacityByteArrayOutputStream arrayOut;
   private LittleEndianDataOutputStream out;
+  private ByteBufferAllocator allocator;
 
-  public DeltaLengthByteArrayValuesWriter(int initialSize, int pageSize) {
-    arrayOut = new CapacityByteArrayOutputStream(initialSize, pageSize);
+  public DeltaLengthByteArrayValuesWriter(int initialSize, int pageSize, ByteBufferAllocator allocator) {
+    arrayOut = new CapacityByteArrayOutputStream(initialSize, pageSize, allocator);
     out = new LittleEndianDataOutputStream(arrayOut);
+    this.allocator=allocator;
     lengthWriter = new DeltaBinaryPackingValuesWriter(
         DeltaBinaryPackingValuesWriter.DEFAULT_NUM_BLOCK_VALUES,
         DeltaBinaryPackingValuesWriter.DEFAULT_NUM_MINIBLOCKS,
-        initialSize, pageSize);
+        initialSize, pageSize, this.allocator);
   }
 
   @Override
@@ -95,6 +99,16 @@ public class DeltaLengthByteArrayValuesWriter extends ValuesWriter {
   }
 
   @Override
+  public void close() {
+    lengthWriter.close();
+    try {
+      arrayOut.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){};
+    }
+  }
+
+  @Override
   public long getAllocatedSize() {
     return lengthWriter.getAllocatedSize() + arrayOut.getCapacity();
   }
@@ -104,3 +118,4 @@ public class DeltaLengthByteArrayValuesWriter extends ValuesWriter {
     return arrayOut.memUsageString(lengthWriter.memUsageString(prefix) + " DELTA_LENGTH_BYTE_ARRAY");
   }
 }
+

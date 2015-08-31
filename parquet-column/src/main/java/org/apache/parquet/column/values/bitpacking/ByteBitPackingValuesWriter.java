@@ -22,6 +22,7 @@ import static org.apache.parquet.column.Encoding.BIT_PACKED;
 
 import java.io.IOException;
 
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.Encoding;
@@ -34,7 +35,7 @@ public class ByteBitPackingValuesWriter extends ValuesWriter {
   private final int bitWidth;
   private ByteBasedBitPackingEncoder encoder;
 
-  public ByteBitPackingValuesWriter(int bound, Packer packer) {
+  public ByteBitPackingValuesWriter(int bound, Packer packer, ByteBufferAllocator a) {
     this.packer = packer;
     this.bitWidth = BytesUtils.getWidthFromMaxInt(bound);
     this.encoder = new ByteBasedBitPackingEncoder(bitWidth, packer);
@@ -66,6 +67,11 @@ public class ByteBitPackingValuesWriter extends ValuesWriter {
   @Override
   public void reset() {
     encoder = new ByteBasedBitPackingEncoder(bitWidth, packer);
+  }
+
+  @Override
+  public void close() {
+    /* nothing to do */
   }
 
   @Override

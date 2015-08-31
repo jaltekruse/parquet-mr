@@ -27,10 +27,12 @@ import static org.apache.parquet.Preconditions.checkArgument;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.parquet.Log;
+import parquet.bytes.ByteBufferAllocator;
 
 /**
  * Similar to a {@link ByteArrayOutputStream}, but uses a different strategy for growing that does not involve copying.
@@ -54,16 +56,17 @@ import org.apache.parquet.Log;
  */
 public class CapacityByteArrayOutputStream extends OutputStream {
   private static final Log LOG = Log.getLog(CapacityByteArrayOutputStream.class);
-  private static final byte[] EMPTY_SLAB = new byte[0];
+  private static final ByteBuffer EMPTY_SLAB = ByteBuffer.wrap(new byte[0]);
 
   private int initialSlabSize;
   private final int maxCapacityHint;
-  private final List<byte[]> slabs = new ArrayList<byte[]>();
+  private final List<ByteBuffer> slabs = new ArrayList<ByteBuffer>();
 
-  private byte[] currentSlab;
+  private ByteBuffer currentSlab;
   private int currentSlabIndex;
   private int bytesAllocated = 0;
   private int bytesUsed = 0;
+  private ByteBufferAllocator allocator;
 
   /**
    * Return an initial slab size such that a CapacityByteArrayOutputStream constructed with it
@@ -91,33 +94,34 @@ public class CapacityByteArrayOutputStream extends OutputStream {
    * determined by {@link #initialSlabSizeHeuristic}, with targetCapacity == maxCapacityHint
    */
   public static CapacityByteArrayOutputStream withTargetNumSlabs(
-      int minSlabSize, int maxCapacityHint, int targetNumSlabs) {
+      int minSlabSize, int maxCapacityHint, int targetNumSlabs, ByteBufferAllocator allocator) {
 
     return new CapacityByteArrayOutputStream(
         initialSlabSizeHeuristic(minSlabSize, maxCapacityHint, targetNumSlabs),
-        maxCapacityHint);
+        maxCapacityHint, allocator);
   }
 
   /**
    * Defaults maxCapacityHint to 1MB
    * @param initialSlabSize
-   * @deprecated use {@link CapacityByteArrayOutputStream#CapacityByteArrayOutputStream(int, int)}
+   * @deprecated use {@link CapacityByteArrayOutputStream#CapacityByteArrayOutputStream(int, int, ByteBufferAllocator)}
    */
   @Deprecated
-  public CapacityByteArrayOutputStream(int initialSlabSize) {
-    this(initialSlabSize, 1024 * 1024);
+  public CapacityByteArrayOutputStream(int initialSlabSize, ByteBufferAllocator allocator) {
+    this(initialSlabSize, 1024 * 1024, allocator);
   }
 
   /**
    * @param initialSlabSize the size to make the first slab
    * @param maxCapacityHint a hint (not guarantee) of the max amount of data written to this stream
    */
-  public CapacityByteArrayOutputStream(int initialSlabSize, int maxCapacityHint) {
+  public CapacityByteArrayOutputStream(int initialSlabSize, int maxCapacityHint, ByteBufferAllocator allocator) {
     checkArgument(initialSlabSize > 0, "initialSlabSize must be > 0");
     checkArgument(maxCapacityHint > 0, "maxCapacityHint must be > 0");
     checkArgument(maxCapacityHint >= initialSlabSize, String.format("maxCapacityHint can't be less than initialSlabSize %d %d", initialSlabSize, maxCapacityHint));
     this.initialSlabSize = initialSlabSize;
     this.maxCapacityHint = maxCapacityHint;
+    this.allocator = allocator;
     reset();
   }
 
@@ -145,7 +149,7 @@ public class CapacityByteArrayOutputStream extends OutputStream {
 
     if (Log.DEBUG) LOG.debug(format("used %d slabs, adding new slab of size %d", slabs.size(), nextSlabSize));
 
-    this.currentSlab = new byte[nextSlabSize];
+    this.currentSlab = allocator.allocate(nextSlabSize);
     this.slabs.add(currentSlab);
     this.bytesAllocated += nextSlabSize;
     this.currentSlabIndex = 0;
@@ -153,11 +157,12 @@ public class CapacityByteArrayOutputStream extends OutputStream {
 
   @Override
   public void write(int b) {
-    if (currentSlabIndex == currentSlab.length) {
+    if (!currentSlab.hasRemaining()) {
       addSlab(1);
     }
-    currentSlab[currentSlabIndex] = (byte) b;
+    currentSlab.put(currentSlabIndex, (byte) b);
     currentSlabIndex += 1;
+    currentSlab.position(currentSlabIndex);
     bytesUsed += 1;
   }
 
@@ -168,18 +173,21 @@ public class CapacityByteArrayOutputStream extends OutputStream {
       throw new IndexOutOfBoundsException(
           String.format("Given byte array of size %d, with requested length(%d) and offset(%d)", b.length, len, off));
     }
-    if (currentSlabIndex + len >= currentSlab.length) {
-      final int length1 = currentSlab.length - currentSlabIndex;
-      arraycopy(b, off, currentSlab, currentSlabIndex, length1);
+    if (len >= currentSlab.remaining()) {
+      final int length1 = currentSlab.remaining();
+      currentSlab.put(b, off, length1);
+      bytesUsed += length1;
+      currentSlabIndex += length1;
       final int length2 = len - length1;
       addSlab(length2);
-      arraycopy(b, off + length1, currentSlab, currentSlabIndex, length2);
+      currentSlab.put(b, off + length1, length2);
       currentSlabIndex = length2;
+      bytesUsed += length2;
     } else {
-      arraycopy(b, off, currentSlab, currentSlabIndex, len);
+      currentSlab.put(b, off, len);
       currentSlabIndex += len;
+      bytesUsed += len;
     }
-    bytesUsed += len;
   }
 
   /**
@@ -190,11 +198,32 @@ public class CapacityByteArrayOutputStream extends OutputStream {
    * @exception  IOException  if an I/O error occurs.
    */
   public void writeTo(OutputStream out) throws IOException {
+    ByteBuffer slab;
     for (int i = 0; i < slabs.size() - 1; i++) {
-      final byte[] slab = slabs.get(i);
-      out.write(slab);
+      slab = slabs.get(i);
+      if (slab.hasArray()) {
+        out.write(slab.array(), slab.arrayOffset(), slab.position());
+      } else {
+        // The OutputStream interface only takes a byte[], unfortunately this means that a ByteBuffer
+        // not backed by a byte array must be copied to fulfil this interface
+        byte[] copy = new byte[slab.limit()];
+        slab.flip();
+        slab.get(copy);
+        out.write(copy);
+      }
     }
-    out.write(currentSlab, 0, currentSlabIndex);
+
+    slab = currentSlab;
+    if (slab.hasArray()) {
+      out.write(slab.array(), slab.arrayOffset(), currentSlabIndex);
+    } else {
+      // The OutputStream interface only takes a byte[], unfortunately this means that a ByteBuffer
+      // not backed by a byte array must be copied to fulfil this interface
+      byte[] copy = new byte[currentSlabIndex];
+      slab.flip();
+      slab.get(copy);
+      out.write(copy);
+    }
   }
 
   /**
@@ -222,6 +251,7 @@ public class CapacityByteArrayOutputStream extends OutputStream {
     // 7 = 2^3 - 1 so that doubling the initial size 3 times will get to the same size
     this.initialSlabSize = max(bytesUsed / 7, initialSlabSize);
     if (Log.DEBUG) LOG.debug(String.format("initial slab of size %d", initialSlabSize));
+    // TODO - make sure we cleanup the buffers if they are off-heap
     this.slabs.clear();
     this.bytesAllocated = 0;
     this.bytesUsed = 0;
@@ -249,13 +279,13 @@ public class CapacityByteArrayOutputStream extends OutputStream {
 
     long seen = 0;
     for (int i = 0; i < slabs.size(); i++) {
-      byte[] slab = slabs.get(i);
-      if (index < seen + slab.length) {
+      ByteBuffer slab = slabs.get(i);
+      if (index < seen + slab.limit()) {
         // ok found index
-        slab[(int)(index-seen)] = value;
+        slab.put((int)(index-seen), value);
         break;
       }
-      seen += slab.length;
+      seen += slab.limit();
     }
   }
 

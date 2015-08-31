@@ -42,6 +42,7 @@ import org.apache.parquet.format.converter.ParquetMetadataConverter;
 import org.apache.parquet.hadoop.CodecFactory.BytesCompressor;
 import org.apache.parquet.io.ParquetEncodingException;
 import org.apache.parquet.schema.MessageType;
+import parquet.bytes.ByteBufferAllocator;
 
 class ColumnChunkPageWriteStore implements PageWriteStore {
   private static final Log LOG = Log.getLog(ColumnChunkPageWriteStore.class);
@@ -65,10 +66,20 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
     private Set<Encoding> encodings = new HashSet<Encoding>();
 
     private Statistics totalStatistics;
+    private final ByteBufferAllocator allocator;
 
-    private ColumnChunkPageWriter(ColumnDescriptor path, BytesCompressor compressor, int pageSize) {
+    // TODO - look back at this, the ByteBuffer code changes involved passing an allocator here
+    // the way this was refactored with the ConcatenatingByteArrayCollector, it is supposed
+    // to be avoiding copies
+    // I assume that this is actually going to be making a copy from off-heap ByteBuffers into
+    // byte arrays, I think the ConcatenatingByteArrayCollector likely should be refactored
+    // to be maintaining a list of ByteBuffers instead of byte arrays
+    private ColumnChunkPageWriter(ColumnDescriptor path,
+                                  BytesCompressor compressor,
+                                  ByteBufferAllocator allocator) {
       this.path = path;
       this.compressor = compressor;
+      this.allocator = allocator;
       this.buf = new ConcatenatingByteArrayCollector();
       this.totalStatistics = getStatsBasedOnType(this.path.getType());
     }
@@ -84,14 +95,14 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
       if (uncompressedSize > Integer.MAX_VALUE) {
         throw new ParquetEncodingException(
             "Cannot write page larger than Integer.MAX_VALUE bytes: " +
-            uncompressedSize);
+                uncompressedSize);
       }
       BytesInput compressedBytes = compressor.compress(bytes);
       long compressedSize = compressedBytes.size();
       if (compressedSize > Integer.MAX_VALUE) {
         throw new ParquetEncodingException(
             "Cannot write compressed page larger than Integer.MAX_VALUE bytes: "
-            + compressedSize);
+                + compressedSize);
       }
       tempOutputStream.reset();
       parquetMetadataConverter.writeDataPageHeader(
@@ -151,10 +162,10 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
       // we only allocate one buffer to copy into instead of multiple.
       buf.collect(
           BytesInput.concat(
-            BytesInput.from(tempOutputStream),
-            repetitionLevels,
-            definitionLevels,
-            compressedData)
+              BytesInput.from(tempOutputStream),
+              repetitionLevels,
+              definitionLevels,
+              compressedData)
       );
       encodings.add(dataEncoding);
     }
@@ -163,7 +174,7 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
       if (size > Integer.MAX_VALUE) {
         throw new ParquetEncodingException(
             "Cannot write page larger than " + Integer.MAX_VALUE + " bytes: " +
-            size);
+                size);
       }
       return (int)size;
     }
@@ -186,10 +197,10 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
             String.format(
                 "written %,dB for %s: %,d values, %,dB raw, %,dB comp, %d pages, encodings: %s",
                 buf.size(), path, totalValueCount, uncompressedLength, compressedLength, pageCount, encodings)
-            + (dictionaryPage != null ? String.format(
-                    ", dic { %,d entries, %,dB raw, %,dB comp}",
-                    dictionaryPage.getDictionarySize(), dictionaryPage.getUncompressedSize(), dictionaryPage.getDictionarySize())
-                    : ""));
+                + (dictionaryPage != null ? String.format(
+                ", dic { %,d entries, %,dB raw, %,dB comp}",
+                dictionaryPage.getDictionarySize(), dictionaryPage.getUncompressedSize(), dictionaryPage.getDictionarySize())
+                : ""));
       }
       encodings.clear();
       pageCount = 0;
@@ -215,15 +226,33 @@ class ColumnChunkPageWriteStore implements PageWriteStore {
     public String memUsageString(String prefix) {
       return buf.memUsageString(prefix + " ColumnChunkPageWriter");
     }
+
+    @Override
+    public ByteBufferAllocator getAllocator() {
+      return allocator;
+    }
+
+    @Override
+    public void reset() {
+
+    }
+
+    @Override
+    public void close() {
+
+    }
   }
 
   private final Map<ColumnDescriptor, ColumnChunkPageWriter> writers = new HashMap<ColumnDescriptor, ColumnChunkPageWriter>();
   private final MessageType schema;
+//  private ByteBufferAllocator allocator;
 
-  public ColumnChunkPageWriteStore(BytesCompressor compressor, MessageType schema, int pageSize) {
+  // TODO - look back at this, an allocator was being passed here in the ByteBuffer changes
+  // See the comment at the ColumnChunkPageWriter constructor above
+  public ColumnChunkPageWriteStore(BytesCompressor compressor, MessageType schema, ByteBufferAllocator allocator) {
     this.schema = schema;
     for (ColumnDescriptor path : schema.getColumns()) {
-      writers.put(path,  new ColumnChunkPageWriter(path, compressor, pageSize));
+      writers.put(path,  new ColumnChunkPageWriter(path, compressor, allocator));
     }
   }
 

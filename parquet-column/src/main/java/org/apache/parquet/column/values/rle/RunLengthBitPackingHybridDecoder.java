@@ -23,7 +23,9 @@ import static org.apache.parquet.Log.DEBUG;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
+import parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.Log;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.bytes.BytesUtils;
@@ -43,7 +45,7 @@ public class RunLengthBitPackingHybridDecoder {
 
   private final int bitWidth;
   private final BytePacker packer;
-  private final ByteArrayInputStream in;
+  private final ByteBufferInputStream in;
 
   private MODE mode;
   private int currentCount;
@@ -51,6 +53,17 @@ public class RunLengthBitPackingHybridDecoder {
   private int[] currentBuffer;
 
   public RunLengthBitPackingHybridDecoder(int bitWidth, ByteArrayInputStream in) {
+    if (DEBUG) LOG.debug("decoding bitWidth " + bitWidth);
+
+    Preconditions.checkArgument(bitWidth >= 0 && bitWidth <= 32, "bitWidth must be >= 0 and <= 32");
+    this.bitWidth = bitWidth;
+    this.packer = Packer.LITTLE_ENDIAN.newBytePacker(bitWidth);
+    byte[] buf = new byte[in.available()];
+    in.read(buf, 0, in.available());
+    this.in = new ByteBufferInputStream(ByteBuffer.wrap(buf));
+  }
+
+  public RunLengthBitPackingHybridDecoder(int bitWidth, ByteBufferInputStream in) {
     if (DEBUG) LOG.debug("decoding bitWidth " + bitWidth);
 
     Preconditions.checkArgument(bitWidth >= 0 && bitWidth <= 32, "bitWidth must be >= 0 and <= 32");
@@ -99,7 +112,7 @@ public class RunLengthBitPackingHybridDecoder {
       bytesToRead = Math.min(bytesToRead, in.available());
       new DataInputStream(in).readFully(bytes, 0, bytesToRead);
       for (int valueIndex = 0, byteIndex = 0; valueIndex < currentCount; valueIndex += 8, byteIndex += bitWidth) {
-        packer.unpack8Values(bytes, byteIndex, currentBuffer, valueIndex);
+        packer.unpack8Values(ByteBuffer.wrap(bytes), byteIndex, currentBuffer, valueIndex);
       }
       break;
     default:

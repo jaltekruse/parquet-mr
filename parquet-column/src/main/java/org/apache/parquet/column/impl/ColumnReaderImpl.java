@@ -27,6 +27,7 @@ import static org.apache.parquet.column.ValuesType.VALUES;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.Log;
@@ -548,7 +549,7 @@ class ColumnReaderImpl implements ColumnReader {
     });
   }
 
-  private void initDataReader(Encoding dataEncoding, byte[] bytes, int offset, int valueCount) {
+  private void initDataReader(Encoding dataEncoding, ByteBuffer byteBuf, int offset, int valueCount) {
     ValuesReader previousReader = this.dataColumn;
 
     this.currentEncoding = dataEncoding;
@@ -570,7 +571,7 @@ class ColumnReaderImpl implements ColumnReader {
       bind(path.getType());
     }
     try {
-      dataColumn.initFromPage(pageValueCount, bytes, offset);
+      dataColumn.initFromPage(pageValueCount, byteBuf, offset);
     } catch (IOException e) {
       throw new ParquetDecodingException("could not read page in col " + path, e);
     }
@@ -588,16 +589,16 @@ class ColumnReaderImpl implements ColumnReader {
     this.repetitionLevelColumn = new ValuesReaderIntIterator(rlReader);
     this.definitionLevelColumn = new ValuesReaderIntIterator(dlReader);
     try {
-      byte[] bytes = page.getBytes().toByteArray();
-      if (DEBUG) LOG.debug("page size " + bytes.length + " bytes and " + pageValueCount + " records");
+      ByteBuffer byteBuf = page.getBytes().toByteBuffer();
+      if (DEBUG) LOG.debug("page size " + page.getBytes().size() + " bytes and " + pageValueCount + " records");
       if (DEBUG) LOG.debug("reading repetition levels at 0");
-      rlReader.initFromPage(pageValueCount, bytes, 0);
+      rlReader.initFromPage(pageValueCount, byteBuf, 0);
       int next = rlReader.getNextOffset();
       if (DEBUG) LOG.debug("reading definition levels at " + next);
-      dlReader.initFromPage(pageValueCount, bytes, next);
+      dlReader.initFromPage(pageValueCount, byteBuf, next);
       next = dlReader.getNextOffset();
       if (DEBUG) LOG.debug("reading data at " + next);
-      initDataReader(page.getValueEncoding(), bytes, next, page.getValueCount());
+      initDataReader(page.getValueEncoding(), byteBuf, next, page.getValueCount());
     } catch (IOException e) {
       throw new ParquetDecodingException("could not read page " + page + " in col " + path, e);
     }
@@ -608,7 +609,7 @@ class ColumnReaderImpl implements ColumnReader {
     this.definitionLevelColumn = newRLEIterator(path.getMaxDefinitionLevel(), page.getDefinitionLevels());
     try {
       if (DEBUG) LOG.debug("page data size " + page.getData().size() + " bytes and " + pageValueCount + " records");
-      initDataReader(page.getDataEncoding(), page.getData().toByteArray(), 0, page.getValueCount());
+      initDataReader(page.getDataEncoding(), page.getData().toByteBuffer(), 0, page.getValueCount());
     } catch (IOException e) {
       throw new ParquetDecodingException("could not read page " + page + " in col " + path, e);
     }

@@ -21,12 +21,15 @@ package org.apache.parquet.column.values.rle;
 import static org.junit.Assert.assertEquals;
 
 import java.io.ByteArrayInputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import org.junit.Test;
 
+import parquet.bytes.ByteBufferInputStream;
+import parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.values.bitpacking.BytePacker;
 import org.apache.parquet.column.values.bitpacking.Packer;
@@ -38,7 +41,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testRLEOnly() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10, new DirectByteBufferAllocator());
     for (int i = 0; i < 100; i++) {
       encoder.writeInt(4);
     }
@@ -68,7 +71,7 @@ public class TestRunLengthBitPackingHybridEncoder {
     // make sure that repeated 0s at the beginning
     // of the stream don't trip up the repeat count
 
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10, new DirectByteBufferAllocator());
     for (int i = 0; i < 10; i++) {
       encoder.writeInt(0);
     }
@@ -86,7 +89,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testBitWidthZero() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(0, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(0, 5, 10, new DirectByteBufferAllocator());
     for (int i = 0; i < 10; i++) {
       encoder.writeInt(0);
     }
@@ -102,8 +105,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testBitPackingOnly() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10);
-
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10, new DirectByteBufferAllocator());
     for (int i = 0; i < 100; i++) {
       encoder.writeInt(i % 3);
     }
@@ -125,7 +127,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testBitPackingOverflow() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10, new DirectByteBufferAllocator());
 
     for (int i = 0; i < 1000; i++) {
       encoder.writeInt(i % 3);
@@ -157,7 +159,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testTransitionFromBitPackingToRle() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(3, 5, 10, new DirectByteBufferAllocator());
 
     // 5 obviously bit-packed values
     encoder.writeInt(0);
@@ -195,7 +197,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testPaddingZerosOnUnfinishedBitPackedRuns() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(5, 5, 10);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(5, 5, 10, new DirectByteBufferAllocator());
     for (int i = 0; i < 9; i++) {
       encoder.writeInt(i+1);
     }
@@ -214,7 +216,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 
   @Test
   public void testSwitchingModes() throws Exception {
-    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(9, 100, 1000);
+    RunLengthBitPackingHybridEncoder encoder = new RunLengthBitPackingHybridEncoder(9, 100, 1000, new DirectByteBufferAllocator());
 
     // rle first
     for (int i = 0; i < 25; i++) {
@@ -287,7 +289,7 @@ public class TestRunLengthBitPackingHybridEncoder {
 	// bit width 2.
 	bytes[0] = (1 << 1 )| 1;
 	bytes[1] = (1 << 0) | (2 << 2) | (3 << 4);
-    ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
+    ByteBufferInputStream stream = new ByteBufferInputStream(ByteBuffer.wrap(bytes));
     RunLengthBitPackingHybridDecoder decoder = new RunLengthBitPackingHybridDecoder(2, stream);
     assertEquals(decoder.readInt(), 1);
     assertEquals(decoder.readInt(), 2);
@@ -309,7 +311,7 @@ public class TestRunLengthBitPackingHybridEncoder {
         next8Values[i] = (byte) is.read();
       }
 
-      packer.unpack8Values(next8Values, 0, unpacked, 0);
+      packer.unpack8Values(ByteBuffer.wrap(next8Values), 0, unpacked, 0);
 
       for (int v = 0; v < 8; v++) {
         values.add(unpacked[v]);

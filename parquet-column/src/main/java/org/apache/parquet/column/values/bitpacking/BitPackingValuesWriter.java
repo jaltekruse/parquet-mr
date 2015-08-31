@@ -24,6 +24,8 @@ import static org.apache.parquet.column.values.bitpacking.BitPacking.getBitPacki
 
 import java.io.IOException;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.CapacityByteArrayOutputStream;
 import org.apache.parquet.column.Encoding;
@@ -42,14 +44,16 @@ public class BitPackingValuesWriter extends ValuesWriter {
   private CapacityByteArrayOutputStream out;
   private BitPackingWriter bitPackingWriter;
   private int bitsPerValue;
+  private ByteBufferAllocator allocator;
 
   /**
    * @param bound the maximum value stored by this column
    * @param pageSize
    */
-  public BitPackingValuesWriter(int bound, int initialCapacity, int pageSize) {
+  public BitPackingValuesWriter(int bound, int initialCapacity, int pageSize, ByteBufferAllocator allocator) {
     this.bitsPerValue = getWidthFromMaxInt(bound);
-    this.out = new CapacityByteArrayOutputStream(initialCapacity, pageSize);
+      this.allocator = allocator;
+    this.out = new CapacityByteArrayOutputStream(initialCapacity, pageSize, this.allocator);
     init();
   }
 
@@ -101,6 +105,18 @@ public class BitPackingValuesWriter extends ValuesWriter {
   public void reset() {
     out.reset();
     init();
+  }
+
+  @Override
+  public void close() {
+    try {
+      out.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){
+        // Should not be a common exception case, only if there is a low level I/O issue that will likely not
+        // be recoverable.
+      };
+    }
   }
 
   /**

@@ -18,9 +18,13 @@
  */
 package org.apache.parquet.column.values.boundedint;
 
+import org.apache.parquet.ParquetRuntimeException;
+import parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.Log;
 import org.apache.parquet.bytes.BytesInput;
 import org.apache.parquet.bytes.CapacityByteArrayOutputStream;
+
+import java.io.IOException;
 
 class BitWriter {
   private static final Log LOG = Log.getLog(BitWriter.class);
@@ -32,6 +36,7 @@ class BitWriter {
   private static final int[] byteToTrueMask = new int[8];
   private static final int[] byteToFalseMask = new int[8];
   private boolean finished = false;
+  private ByteBufferAllocator allocator;
   static {
     int currentMask = 1;
     for (int i = 0; i < byteToTrueMask.length; i++) {
@@ -41,8 +46,9 @@ class BitWriter {
     }
   }
 
-  public BitWriter(int initialCapacity, int pageSize) {
-    this.baos = new CapacityByteArrayOutputStream(initialCapacity, pageSize);
+  public BitWriter(int initialCapacity, int pageSize, ByteBufferAllocator allocator) {
+    this.allocator = allocator;
+    this.baos = new CapacityByteArrayOutputStream(initialCapacity, pageSize, this.allocator);
   }
 
   public void writeBit(boolean bit) {
@@ -155,5 +161,16 @@ class BitWriter {
 
   public String memUsageString(String prefix) {
     return baos.memUsageString(prefix);
+  }
+
+  public void close() {
+    currentByte = 0;
+    currentBytePosition = 0;
+    finished = false;
+    try {
+      baos.close();
+    } catch (IOException e) {
+      throw new ParquetRuntimeException("Error closing output stream.", e){};
+    }
   }
 }
